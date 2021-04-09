@@ -966,7 +966,7 @@ void v99x8_device::default_border(const scrntype_t *pens, scrntype_t *ln, scrnty
 
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	tb = GET_TP(m_cont_reg[7] & 0xf);
-	i = LONG_WIDTH;
+	i = LONG_WIDTH + ((m_cont_reg[25] & 2) ? 16 : 0);
 	while (i--) {
 		*ln++ = pen;
 		*tp++ = tb;
@@ -980,7 +980,7 @@ void v99x8_device::graphic7_border(const scrntype_t *pens, scrntype_t *ln, scrnt
 
 	pen = pens[m_pal_ind256[m_cont_reg[7]]];
 	tb = GET_TP(m_cont_reg[7] & 0xf);
-	i = LONG_WIDTH;
+	i = LONG_WIDTH + ((m_cont_reg[25] & 2) ? 16 : 0);
 	while (i--) {
 		*ln++ = pen;
 		*tp++ = tb;
@@ -997,7 +997,7 @@ void v99x8_device::graphic5_border(const scrntype_t *pens, scrntype_t *ln, scrnt
 	pen0 = pens[m_pal_ind16[((m_cont_reg[7]>>2)&0x03)]];
 	tb0 = GET_TP((m_cont_reg[7] >> 2) & 0x03);
 	tb1 = GET_TP(m_cont_reg[7] & 0x03);
-	i = LONG_WIDTH / 2;
+	i = LONG_WIDTH / 2 + ((m_cont_reg[25] & 2) ? 16 : 0);;
 	while (i--) {
 		*ln++ = pen0;
 		*ln++ = pen1;
@@ -1022,7 +1022,7 @@ void v99x8_device::mode_text1(const scrntype_t *pens, scrntype_t *ln, scrntype_t
 	name = (line/8)*40;
 
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
-	xxx = (m_offset_x + 8) * 2;
+	xxx = (m_offset_x + 8) * 2 + +((m_cont_reg[25] & 2) ? 16 : 0);
 	while (xxx--) {
 		*ln++ = pen;
 		*tp++ = tb;
@@ -1077,7 +1077,7 @@ void v99x8_device::mode_text2(const scrntype_t *pens, scrntype_t *ln, scrntype_t
 	tb0 = GET_TP(m_cont_reg[12] & 15);
 	name = (line/8)*80;
 
-	xxx = (m_offset_x + 8) * 2;
+	xxx = (m_offset_x + 8) * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	while (xxx--) {
 		*ln++ = pen;
@@ -1152,7 +1152,7 @@ void v99x8_device::mode_multi(const scrntype_t *pens, scrntype_t *ln, scrntype_t
 
 	pen_bg = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	tb = GET_TP(m_cont_reg[7] & 0xf);
-	xx = m_offset_x * 2;
+	xx = m_offset_x * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
 	while (xx--) {
 		*ln++ = pen_bg;
 		*tp++ = tb;
@@ -1197,19 +1197,29 @@ void v99x8_device::mode_graphic1(const scrntype_t *pens, scrntype_t *ln, scrntyp
 
 	line2 = (line - m_cont_reg[23]) & 255;
 
-	name = (line2/8)*32;
-
+	int masked = (m_cont_reg[25] & 2) ? 16 : 0;
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	toff = GET_TP(m_cont_reg[7] & 0x0f);
-	xxx = m_offset_x * 2;
+	xxx = m_offset_x * 2 + masked;
 	while (xxx--) {
 		*ln++ = pen;
 		*tp++ = toff;
 	}
 
-	for (x=0;x<32;x++)
+	int hoff_h = m_cont_reg[26] & 31;
+	int hoff_l = m_cont_reg[27] & 7;
+	name = (line2 / 8) * 32;
+	if (masked > 0) {
+		ln -= (8 - hoff_l) * 2;
+		tp -= (8 - hoff_l) * 2;
+	}
+	else {
+		ln += hoff_l * 2;
+		tp += hoff_l * 2;
+	}
+	for (x=0; x<32 ;x++)
 	{
-		charcode = m_vram_space->read_byte(nametbl_addr + name);
+		charcode = m_vram_space->read_byte(nametbl_addr + name + hoff_h);
 		colour = m_vram_space->read_byte(colourtbl_addr + charcode/8);
 		fg = pens[m_pal_ind16[colour>>4]];
 		bg = pens[m_pal_ind16[colour&15]];
@@ -1217,15 +1227,24 @@ void v99x8_device::mode_graphic1(const scrntype_t *pens, scrntype_t *ln, scrntyp
 		tb = GET_TP(colour & 15);
 		pattern = m_vram_space->read_byte(patterntbl_addr + (charcode * 8 + (line2 & 7)));
 
-		for (xx=0;xx<8;xx++)
+		for (xx=0; xx<8; xx++)
 		{
-			*ln++ = (pattern & 0x80) ? fg : bg;
-			*ln++ = (pattern & 0x80) ? fg : bg;
-			*tp++ = (pattern & 0x80) ? tf : tb;
-			*tp++ = (pattern & 0x80) ? tf : tb;
+			if (x == 31 && (xx + hoff_l) > 7) {
+				break;
+			}
+			if (x == 0 && xx < (8 - hoff_l) && masked > 0) {
+				ln += 2;
+				tp += 2;
+			}
+			else {
+				*ln++ = (pattern & 0x80) ? fg : bg;
+				*ln++ = (pattern & 0x80) ? fg : bg;
+				*tp++ = (pattern & 0x80) ? tf : tb;
+				*tp++ = (pattern & 0x80) ? tf : tb;
+			}
 			pattern <<= 1;
 		}
-		name++;
+		hoff_h = (hoff_h + 1) & 31;
 	}
 
 	xx = (16 - m_offset_x) * 2;
@@ -1252,17 +1271,30 @@ void v99x8_device::mode_graphic23(const scrntype_t *pens, scrntype_t *ln, scrnty
 	line2 = (line + m_cont_reg[23]) & 255;
 	name = (line2/8)*32;
 
+	int masked = (m_cont_reg[25] & 2) ? 16 : 0;
+
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	toff = GET_TP(m_cont_reg[7] & 0x0f);
-	xxx = m_offset_x * 2;
+	xxx = m_offset_x * 2 + masked;
 	while (xxx--) {
 		*ln++ = pen;
 		*tp++ = toff;
 	}
+	int hoff_h = m_cont_reg[26] & 31;
+	int hoff_l = m_cont_reg[27] & 7;
+	name = (line2 / 8) * 32;
+	if (masked > 0) {
+		ln -= (8 - hoff_l) * 2;
+		tp -= (8 - hoff_l) * 2;
+	}
+	else {
+		ln += hoff_l * 2;
+		tp += hoff_l * 2;
+	}
 
 	for (x=0;x<32;x++)
 	{
-		charcode = m_vram_space->read_byte(nametbl_addr + name) + (line2&0xc0)*4;
+		charcode = m_vram_space->read_byte(nametbl_addr + name + hoff_h) + (line2&0xc0)*4;
 		colour = m_vram_space->read_byte(colourtbl_addr + ((charcode&colourmask)*8+(line2&7)));
 		pattern = m_vram_space->read_byte(patterntbl_addr + ((charcode&patternmask)*8+(line2&7)));
 		fg = pens[m_pal_ind16[colour>>4]];
@@ -1271,13 +1303,22 @@ void v99x8_device::mode_graphic23(const scrntype_t *pens, scrntype_t *ln, scrnty
 		tb = GET_TP(colour & 15);
 		for (xx=0;xx<8;xx++)
 		{
-			*ln++ = (pattern & 0x80) ? fg : bg;
-			*ln++ = (pattern & 0x80) ? fg : bg;
-			*tp++ = (pattern & 0x80) ? tf : tb;
-			*tp++ = (pattern & 0x80) ? tf : tb;
+			if (x == 31 && (xx + hoff_l) > 7) {
+				break;
+			}
+			if (x == 0 && xx < (8 - hoff_l) && masked > 0) {
+				ln += 2;
+				tp += 2;
+			}
+			else {
+				*ln++ = (pattern & 0x80) ? fg : bg;
+				*ln++ = (pattern & 0x80) ? fg : bg;
+				*tp++ = (pattern & 0x80) ? tf : tb;
+				*tp++ = (pattern & 0x80) ? tf : tb;
+			}
 			pattern <<= 1;
 		}
-		name++;
+		hoff_h = (hoff_h + 1) & 31;
 	}
 
 	xx = (16 - m_offset_x) * 2;
@@ -1297,33 +1338,64 @@ void v99x8_device::mode_graphic4(const scrntype_t *pens, scrntype_t *ln, scrntyp
 
 	line2 = ((line + m_cont_reg[23]) & linemask) & 255;
 
-	nametbl_addr = ((m_cont_reg[2] & 0x40) << 10) + line2 * 128;
-	if ( (m_cont_reg[2] & 0x20) && v9938_second_field() )
-		nametbl_addr += 0x8000;
-
 	pen_bg = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	tp_bg = GET_TP(m_cont_reg[7] & 0x0f);
-	xx = m_offset_x * 2;
+
+	int masked = (m_cont_reg[25] & 2) ? 16 : 0;
+	xx = m_offset_x * 2 + masked;
 	while (xx--) {
 		*ln++ = pen_bg;
 		*tp++ = tp_bg;
 	}
 
-	for (x=0;x<128;x++)
+	int hoff_h = (m_cont_reg[26] & 31) * 4;
+	int hoff_l = (m_cont_reg[27] & 7);
+	if (masked > 0) {
+		ln -= (8 - hoff_l) * 2;
+		tp -= (8 - hoff_l) * 2;
+	}
+	else {
+		ln += hoff_l * 2;
+		tp += hoff_l * 2;
+	}
+	nametbl_addr = ((m_cont_reg[2] & 0x40) << 10) + line2 * 128;
+	if ((m_cont_reg[2] & 0x20) && v9938_second_field())
+		nametbl_addr += 0x8000;
+
+	for (x = 0; x < 128 && ((x * 2) + hoff_l) < 256; x++)
 	{
-		colour = m_vram_space->read_byte(nametbl_addr++);
-		pen = pens[m_pal_ind16[colour>>4]];
-		tf = GET_TP(colour >> 4);
-		*ln++ = pen;
-		*ln++ = pen;
-		*tp++ = tf;
-		*tp++ = tf;
-		pen = pens[m_pal_ind16[colour&15]];
-		tf = GET_TP(colour & 15);
-		*ln++ = pen;
-		*ln++ = pen;
-		*tp++ = tf;
-		*tp++ = tf;
+		colour = m_vram_space->read_byte(nametbl_addr + hoff_h);
+		if ((x * 2) < (8 - hoff_l) && masked > 0) {
+			ln += 2;
+			tp += 2;
+		}
+		else {
+			pen = pens[m_pal_ind16[colour >> 4]];
+			tf = GET_TP(colour >> 4);
+			*ln++ = pen;
+			*ln++ = pen;
+			*tp++ = tf;
+			*tp++ = tf;
+		}
+		if (((x * 2) + hoff_l + 1) < 256) {
+			if ((x * 2 + 1) < (8 - hoff_l) && masked > 0) {
+				ln += 2;
+				tp += 2;
+			}
+			else {
+				pen = pens[m_pal_ind16[colour & 15]];
+				tf = GET_TP(colour & 15);
+				*ln++ = pen;
+				*ln++ = pen;
+				*tp++ = tf;
+				*tp++ = tf;
+			}
+		}
+		hoff_h++;
+		if (hoff_h >= 128) {
+			hoff_h = 0;
+			nametbl_addr = ((m_cont_reg[2] & 0x40) << 10) + line2 * 128;	//always page 0
+		}
 	}
 
 	xx = (16 - m_offset_x) * 2;
@@ -1351,7 +1423,7 @@ void v99x8_device::mode_graphic5(const scrntype_t *pens, scrntype_t *ln, scrntyp
 	pen_bg1[0] = pens[m_pal_ind16[(m_cont_reg[7]&0x03)]];
 	pen_bg0[0] = pens[m_pal_ind16[((m_cont_reg[7]>>2)&0x03)]];
 
-	xx = m_offset_x;
+	xx = m_offset_x + ((m_cont_reg[25] & 2) ? 16 : 0);
 	while (xx--) { 
 		*ln++ = pen_bg0[0];
 		*ln++ = pen_bg1[0];
@@ -1409,7 +1481,7 @@ void v99x8_device::mode_graphic6(const scrntype_t *pens, scrntype_t *ln, scrntyp
 
 	pen_bg = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	tb = GET_TP(m_cont_reg[7] & 0xf);
-	xx = m_offset_x * 2;
+	xx = m_offset_x * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
 	while (xx--) {
 		*ln++ = pen_bg;
 		*tp++ = tb;
@@ -1472,7 +1544,7 @@ void v99x8_device::mode_graphic7(const scrntype_t *pens, scrntype_t *ln, scrntyp
 
 	pen_bg = pens[m_pal_ind256[m_cont_reg[7]]];
 	tb = GET_TP(m_cont_reg[7]);
-	xx = m_offset_x * 2;
+	xx = m_offset_x * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
 	while (xx--) {
 		*ln++ = pen_bg;
 		*tp++ = tb;
@@ -1601,7 +1673,7 @@ void v99x8_device::mode_unknown(const scrntype_t *pens, scrntype_t *ln, scrntype
 	tf = GET_TP(m_cont_reg[7] >> 4);
 	tb = GET_TP(m_cont_reg[7] & 15);
 
-	x = m_offset_x * 2;
+	x = m_offset_x * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
 	while (x--) {
 		*ln++ = bg;
 		*tp++ = tb;
