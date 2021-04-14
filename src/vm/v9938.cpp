@@ -44,7 +44,8 @@ todo:
 //#define LOG(x)  do { if (VERBOSE) logerror x; } while (0)
 #define LOG(x)  void(x)
 
-#define GET_TP(x)	((x) ? (-1) : 0)
+#define TP_DIS	(m_cont_reg[8] & 0x20)
+#define GET_TP(x)	((x || TP_DIS) ? (-1) : 0)
 
 enum
 {
@@ -966,7 +967,7 @@ void v99x8_device::default_border(const scrntype_t *pens, scrntype_t *ln, scrnty
 
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	tb = GET_TP(m_cont_reg[7] & 0xf);
-	i = LONG_WIDTH + ((m_cont_reg[25] & 2) ? 16 : 0);
+	i = LONG_WIDTH;
 	while (i--) {
 		*ln++ = pen;
 		*tp++ = tb;
@@ -980,7 +981,7 @@ void v99x8_device::graphic7_border(const scrntype_t *pens, scrntype_t *ln, scrnt
 
 	pen = pens[m_pal_ind256[m_cont_reg[7]]];
 	tb = GET_TP(m_cont_reg[7] & 0xf);
-	i = LONG_WIDTH + ((m_cont_reg[25] & 2) ? 16 : 0);
+	i = LONG_WIDTH;
 	while (i--) {
 		*ln++ = pen;
 		*tp++ = tb;
@@ -997,7 +998,7 @@ void v99x8_device::graphic5_border(const scrntype_t *pens, scrntype_t *ln, scrnt
 	pen0 = pens[m_pal_ind16[((m_cont_reg[7]>>2)&0x03)]];
 	tb0 = GET_TP((m_cont_reg[7] >> 2) & 0x03);
 	tb1 = GET_TP(m_cont_reg[7] & 0x03);
-	i = LONG_WIDTH / 2 + ((m_cont_reg[25] & 2) ? 16 : 0);;
+	i = LONG_WIDTH / 2;
 	while (i--) {
 		*ln++ = pen0;
 		*ln++ = pen1;
@@ -1022,7 +1023,7 @@ void v99x8_device::mode_text1(const scrntype_t *pens, scrntype_t *ln, scrntype_t
 	name = (line/8)*40;
 
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
-	xxx = (m_offset_x + 8) * 2 + +((m_cont_reg[25] & 2) ? 16 : 0);
+	xxx = (m_offset_x + 8) * 2;
 	while (xxx--) {
 		*ln++ = pen;
 		*tp++ = tb;
@@ -1197,7 +1198,7 @@ void v99x8_device::mode_graphic1(const scrntype_t *pens, scrntype_t *ln, scrntyp
 
 	line2 = (line - m_cont_reg[23]) & 255;
 
-	int masked = (m_cont_reg[25] & 2) ? 16 : 0;
+	int masked = (m_model == MODEL_V9958 && m_cont_reg[25] & 2) ? 16 : 0;
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	toff = GET_TP(m_cont_reg[7] & 0x0f);
 	xxx = m_offset_x * 2 + masked;
@@ -1206,8 +1207,8 @@ void v99x8_device::mode_graphic1(const scrntype_t *pens, scrntype_t *ln, scrntyp
 		*tp++ = toff;
 	}
 
-	int hoff_h = m_cont_reg[26] & 31;
-	int hoff_l = m_cont_reg[27] & 7;
+	int hoff_h = (m_model == MODEL_V9958) ? m_cont_reg[26] & 31 : 0;
+	int hoff_l = (m_model == MODEL_V9958) ? m_cont_reg[27] & 7 : 0;
 	name = (line2 / 8) * 32;
 	if (masked > 0) {
 		ln -= (8 - hoff_l) * 2;
@@ -1271,7 +1272,7 @@ void v99x8_device::mode_graphic23(const scrntype_t *pens, scrntype_t *ln, scrnty
 	line2 = (line + m_cont_reg[23]) & 255;
 	name = (line2/8)*32;
 
-	int masked = (m_cont_reg[25] & 2) ? 16 : 0;
+	int masked = (m_model == MODEL_V9958 && m_cont_reg[25] & 2) ? 16 : 0;
 
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	toff = GET_TP(m_cont_reg[7] & 0x0f);
@@ -1280,8 +1281,8 @@ void v99x8_device::mode_graphic23(const scrntype_t *pens, scrntype_t *ln, scrnty
 		*ln++ = pen;
 		*tp++ = toff;
 	}
-	int hoff_h = m_cont_reg[26] & 31;
-	int hoff_l = m_cont_reg[27] & 7;
+	int hoff_h = (m_model == MODEL_V9958) ? m_cont_reg[26] & 31 : 0;
+	int hoff_l = (m_model == MODEL_V9958) ? m_cont_reg[27] & 7 : 0;
 	name = (line2 / 8) * 32;
 	if (masked > 0) {
 		ln -= (8 - hoff_l) * 2;
@@ -1341,15 +1342,15 @@ void v99x8_device::mode_graphic4(const scrntype_t *pens, scrntype_t *ln, scrntyp
 	pen_bg = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	tp_bg = GET_TP(m_cont_reg[7] & 0x0f);
 
-	int masked = (m_cont_reg[25] & 2) ? 16 : 0;
+	int masked = (m_model == MODEL_V9958 && m_cont_reg[25] & 2) ? 16 : 0;
 	xx = m_offset_x * 2 + masked;
 	while (xx--) {
 		*ln++ = pen_bg;
 		*tp++ = tp_bg;
 	}
 
-	int hoff_h = (m_cont_reg[26] & 31) * 4;
-	int hoff_l = (m_cont_reg[27] & 7);
+	int hoff_h = (m_model == MODEL_V9958) ? (m_cont_reg[26] & 31) * 4 : 0;
+	int hoff_l = (m_model == MODEL_V9958) ? (m_cont_reg[27] & 7) : 0;
 	if (masked > 0) {
 		ln -= (8 - hoff_l) * 2;
 		tp -= (8 - hoff_l) * 2;
@@ -1423,12 +1424,13 @@ void v99x8_device::mode_graphic5(const scrntype_t *pens, scrntype_t *ln, scrntyp
 	pen_bg1[0] = pens[m_pal_ind16[(m_cont_reg[7]&0x03)]];
 	pen_bg0[0] = pens[m_pal_ind16[((m_cont_reg[7]>>2)&0x03)]];
 
-	xx = m_offset_x + ((m_cont_reg[25] & 2) ? 16 : 0);
+	int masked = (m_model == MODEL_V9958 && m_cont_reg[25] & 2) ? 16 : 0;
+	xx = m_offset_x + (masked / 2);
 	while (xx--) { 
 		*ln++ = pen_bg0[0];
 		*ln++ = pen_bg1[0];
-		*tp++ = 0;
-		*tp++ = 0;
+		*tp++ = GET_TP(0);
+		*tp++ = GET_TP(0);
 	}
 
 	x = (m_cont_reg[8] & 0x20) ? 0 : 1;
@@ -1439,18 +1441,48 @@ void v99x8_device::mode_graphic5(const scrntype_t *pens, scrntype_t *ln, scrntyp
 		pen_bg1[x] = pens[m_pal_ind16[x]];
 	}
 
-	for (x=0;x<128;x++)
-	{
-		colour = m_vram_space->read_byte(nametbl_addr++);
+	int hoff_h = (m_model == MODEL_V9958) ? (m_cont_reg[26] & 31) * 4 : 0;
+	int hoff_l = (m_model == MODEL_V9958) ? (m_cont_reg[27] & 7) : 0;
 
-		*ln++ = pen_bg0[colour>>6];
-		*ln++ = pen_bg1[(colour>>4)&3];
-		*ln++ = pen_bg0[(colour>>2)&3];
-		*ln++ = pen_bg1[(colour&3)];
-		*tp++ = GET_TP(colour >> 6);
-		*tp++ = GET_TP((colour >> 4) & 3);
-		*tp++ = GET_TP((colour >> 2) & 3);
-		*tp++ = GET_TP(colour & 3);
+	if (masked > 0) {
+		ln -= (8 - hoff_l) * 2;
+		tp -= (8 - hoff_l) * 2;
+	}
+	else {
+		ln += hoff_l * 2;
+		tp += hoff_l * 2;
+	}
+
+	for (x = 0; x < 128 && (x * 2 + hoff_l) < 256; x++)
+	{
+		colour = m_vram_space->read_byte(nametbl_addr + hoff_h);
+		if ((x * 2) < (8 - hoff_l) && masked > 0) {
+			ln += 2;
+			tp += 2;
+		}
+		else {
+			*ln++ = pen_bg0[colour >> 6];
+			*ln++ = pen_bg1[(colour >> 4) & 3];
+			*tp++ = GET_TP(colour >> 6);
+			*tp++ = GET_TP((colour >> 4) & 3);
+		}
+		if (((x * 2 + 1) + hoff_l) < 256) {
+			if ((x * 2 + 1) < (8 - hoff_l) && masked > 0) {
+				ln += 2;
+				tp += 2;
+			}
+			else {
+				*ln++ = pen_bg0[(colour >> 2) & 3];
+				*ln++ = pen_bg1[(colour & 3)];
+				*tp++ = GET_TP((colour >> 2) & 3);
+				*tp++ = GET_TP(colour & 3);
+			}
+		}
+		hoff_h++;
+		if (hoff_h >= 128) {
+			hoff_h = 0;
+			nametbl_addr = ((m_cont_reg[2] & 0x40) << 10) + line2 * 128;	//always page 0
+		}
 	}
 
 	pen_bg1[0] = pens[m_pal_ind16[(m_cont_reg[7]&0x03)]];
@@ -1459,8 +1491,8 @@ void v99x8_device::mode_graphic5(const scrntype_t *pens, scrntype_t *ln, scrntyp
 	while (xx--) {
 		*ln++ = pen_bg0[0];
 		*ln++ = pen_bg1[0];
-		*tp++ = 0;
-		*tp++ = 0;
+		*tp++ = GET_TP(0);
+		*tp++ = GET_TP(0);
 	}
 }
 
@@ -1481,13 +1513,27 @@ void v99x8_device::mode_graphic6(const scrntype_t *pens, scrntype_t *ln, scrntyp
 
 	pen_bg = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	tb = GET_TP(m_cont_reg[7] & 0xf);
-	xx = m_offset_x * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
+
+	int masked = (m_model == MODEL_V9958 && m_cont_reg[25] & 2) ? 16 : 0;
+	xx = m_offset_x * 2 + masked;
 	while (xx--) {
 		*ln++ = pen_bg;
 		*tp++ = tb;
 	}
 
-	if (m_cont_reg[2] & 0x40)
+	int hoff_h = (m_model == MODEL_V9958) ? (m_cont_reg[26] & 31) * 8 : 0;
+	int hoff_l = (m_model == MODEL_V9958) ? (m_cont_reg[27] & 7) : 0;
+
+	if (masked > 0) {
+		ln -= (8 - hoff_l) * 2;
+		tp -= (8 - hoff_l) * 2;
+	}
+	else {
+		ln += hoff_l * 2;
+		tp += hoff_l * 2;
+	}
+
+	if (m_model == MODEL_V9938 && m_cont_reg[2] & 0x40)
 	{
 		for (x=0;x<32;x++)
 		{
@@ -1510,14 +1556,25 @@ void v99x8_device::mode_graphic6(const scrntype_t *pens, scrntype_t *ln, scrntyp
 	}
 	else
 	{
-		for (x=0;x<256;x++)
+		for (x = 0; (x + hoff_l) < 256; x++)
 		{
-			colour = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
-			*ln++ = pens[m_pal_ind16[colour>>4]];
-			*ln++ = pens[m_pal_ind16[colour&15]];
-			*tp++ = GET_TP(colour >> 4);
-			*tp++ = GET_TP(colour & 15);
-			nametbl_addr++;
+			int nametbl = nametbl_addr + hoff_h;
+			colour = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
+			if (x < (8 - hoff_l) && masked > 0) {
+				ln += 2;
+				tp += 2;
+			}
+			else {
+				*ln++ = pens[m_pal_ind16[colour >> 4]];
+				*ln++ = pens[m_pal_ind16[colour & 15]];
+				*tp++ = GET_TP(colour >> 4);
+				*tp++ = GET_TP(colour & 15);
+			}
+			hoff_h++;
+			if (hoff_h >= 256) {
+				hoff_h = 0;
+				nametbl_addr = line2 << 8;	//always page 0
+			}
 		}
 	}
 
@@ -1544,91 +1601,104 @@ void v99x8_device::mode_graphic7(const scrntype_t *pens, scrntype_t *ln, scrntyp
 
 	pen_bg = pens[m_pal_ind256[m_cont_reg[7]]];
 	tb = GET_TP(m_cont_reg[7]);
-	xx = m_offset_x * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
+
+	int masked = (m_model == MODEL_V9958 && m_cont_reg[25] & 2) ? 16 : 0;
+	xx = m_offset_x * 2 + masked;
 	while (xx--) {
 		*ln++ = pen_bg;
 		*tp++ = tb;
 	}
 
+	int hoff_h = (m_model == MODEL_V9958) ? (m_cont_reg[26] & 31) * 8 : 0;
+	int hoff_l = (m_model == MODEL_V9958) ? (m_cont_reg[27] & 7) : 0;
+
+	if (masked > 0) {
+		ln -= (8 - hoff_l) * 2;
+		tp -= (8 - hoff_l) * 2;
+	}
+	else {
+		ln += hoff_l * 2;
+		tp += hoff_l * 2;
+	}
+
 	if ((m_v9958_sp_mode & 0x18) == 0x08) // v9958 screen 12, puzzle star title screen
 	{
-		for (x=0;x<64;x++)
+		for (x=0; x<64; x++)
 		{
 			int colour[4];
 			int ind;
-
-			colour[0] = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
-			nametbl_addr++;
-			colour[1] = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
-			nametbl_addr++;
-			colour[2] = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
-			nametbl_addr++;
-			colour[3] = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
+			int nametbl = nametbl_addr + hoff_h;
+			colour[0] = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
+			nametbl++;
+			colour[1] = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
+			nametbl++;
+			colour[2] = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
+			nametbl++;
+			colour[3] = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
 
 			ind = (colour[0] & 7) << 11 | (colour[1] & 7) << 14 |
 			(colour[2] & 7) << 5 | (colour[3] & 7) << 8;
-
-			*ln++ = pens[s_pal_indYJK[ind | ((colour[0] >> 3) & 31)]];
-			*ln++ = pens[s_pal_indYJK[ind | ((colour[0] >> 3) & 31)]];
-			*tp++ = GET_TP(ind | ((colour[0] >> 3) & 31));
-			*tp++ = GET_TP(ind | ((colour[0] >> 3) & 31));
-			*ln++ = pens[s_pal_indYJK[ind | ((colour[1] >> 3) & 31)]];
-			*ln++ = pens[s_pal_indYJK[ind | ((colour[1] >> 3) & 31)]];
-			*tp++ = GET_TP(ind | ((colour[1] >> 3) & 31));
-			*tp++ = GET_TP(ind | ((colour[1] >> 3) & 31));
-			*ln++ = pens[s_pal_indYJK[ind | ((colour[2] >> 3) & 31)]];
-			*ln++ = pens[s_pal_indYJK[ind | ((colour[2] >> 3) & 31)]];
-			*tp++ = GET_TP(ind | ((colour[2] >> 3) & 31));
-			*tp++ = GET_TP(ind | ((colour[2] >> 3) & 31));
-			*ln++ = pens[s_pal_indYJK[ind | ((colour[3] >> 3) & 31)]];
-			*ln++ = pens[s_pal_indYJK[ind | ((colour[3] >> 3) & 31)]];
-			*tp++ = GET_TP(ind | ((colour[3] >> 3) & 31));
-			*tp++ = GET_TP(ind | ((colour[3] >> 3) & 31));
-
-			nametbl_addr++;
+			for (int xx = 0; xx < 4 && (x * 4 + xx + hoff_l) < 256; xx++) {
+				if (masked > 0 && (x * 4 + xx) < (8 - hoff_l)) {
+					ln += 2;
+					tp += 2;
+				}
+				else {
+					int Y = (colour[xx] >> 3) & 31;
+					*ln++ = pens[s_pal_indYJK[ind | Y]];
+					*ln++ = *(ln - 1);
+					*tp++ = GET_TP(ind | Y);
+					*tp++ = *(tp - 1);
+				}
+			}
+			hoff_h += 4;
+			if (hoff_h >= 256) {
+				hoff_h = 0;
+				nametbl_addr = line2 << 8;
+			}
 		}
 	}
 	else if ((m_v9958_sp_mode & 0x18) == 0x18) // v9958 screen 10/11, puzzle star & sexy boom gameplay
 	{
-		for (x=0;x<64;x++)
+		for (x = 0; x < 64; x++)
 		{
 			int colour[4];
 			int ind;
+			int nametbl = nametbl_addr + hoff_h;
 
-			colour[0] = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
-			nametbl_addr++;
-			colour[1] = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
-			nametbl_addr++;
-			colour[2] = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
-			nametbl_addr++;
-			colour[3] = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
+			colour[0] = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
+			nametbl++;
+			colour[1] = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
+			nametbl++;
+			colour[2] = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
+			nametbl++;
+			colour[3] = m_vram_space->read_byte(((nametbl &1) << 16) | (nametbl >>1));
 
 			ind = (colour[0] & 7) << 11 | (colour[1] & 7) << 14 |
 			(colour[2] & 7) << 5 | (colour[3] & 7) << 8;
-
-			*ln++ = pens[colour[0] & 8 ? m_pal_ind16[colour[0] >> 4] : s_pal_indYJK[ind | ((colour[0] >> 3) & 30)]];
-			*ln++ = pens[colour[0] & 8 ? m_pal_ind16[colour[0] >> 4] : s_pal_indYJK[ind | ((colour[0] >> 3) & 30)]];
-			*tp++ = GET_TP((colour[0] & 8) ? (colour[0] >> 4) : (ind | ((colour[0] >> 3) & 30)));
-			*tp++ = GET_TP((colour[0] & 8) ? (colour[0] >> 4) : (ind | ((colour[0] >> 3) & 30)));
-			*ln++ = pens[colour[1] & 8 ? m_pal_ind16[colour[1] >> 4] : s_pal_indYJK[ind | ((colour[1] >> 3) & 30)]];
-			*ln++ = pens[colour[1] & 8 ? m_pal_ind16[colour[1] >> 4] : s_pal_indYJK[ind | ((colour[1] >> 3) & 30)]];
-			*tp++ = GET_TP((colour[1] & 8) ? (colour[1] >> 4) : (ind | ((colour[1] >> 3) & 30)));
-			*tp++ = GET_TP((colour[1] & 8) ? (colour[1] >> 4) : (ind | ((colour[1] >> 3) & 30)));
-			*ln++ = pens[colour[2] & 8 ? m_pal_ind16[colour[2] >> 4] : s_pal_indYJK[ind | ((colour[2] >> 3) & 30)]];
-			*ln++ = pens[colour[2] & 8 ? m_pal_ind16[colour[2] >> 4] : s_pal_indYJK[ind | ((colour[2] >> 3) & 30)]];
-			*tp++ = GET_TP((colour[2] & 8) ? (colour[2] >> 4) : (ind | ((colour[2] >> 3) & 30)));
-			*tp++ = GET_TP((colour[2] & 8) ? (colour[2] >> 4) : (ind | ((colour[2] >> 3) & 30)));
-			*ln++ = pens[colour[3] & 8 ? m_pal_ind16[colour[3] >> 4] : s_pal_indYJK[ind | ((colour[3] >> 3) & 30)]];
-			*ln++ = pens[colour[3] & 8 ? m_pal_ind16[colour[3] >> 4] : s_pal_indYJK[ind | ((colour[3] >> 3) & 30)]];
-			*tp++ = GET_TP((colour[3] & 8) ? (colour[3] >> 4) : (ind | ((colour[3] >> 3) & 30)));
-			*tp++ = GET_TP((colour[3] & 8) ? (colour[3] >> 4) : (ind | ((colour[3] >> 3) & 30)));
-
-			nametbl_addr++;
+			for (int xx = 0; xx < 4 && (x * 4 + xx + hoff_l) < 256; xx++) {
+				if (masked > 0 && (x * 4 + xx) < (8 - hoff_l)) {
+					ln += 2;
+					tp += 2;
+				}
+				else {
+					int Y = (colour[xx] >> 3) & 30;
+					*ln++ = pens[colour[xx] & 8 ? m_pal_ind16[colour[xx] >> 4] : s_pal_indYJK[ind | ((colour[xx] >> 3) & 30)]];
+					*ln++ = *(ln - 1);
+					*tp++ = GET_TP(((colour[xx] & 8) ? (colour[xx] >> 4) : (ind | ((colour[xx] >> 3) & 30))));
+					*tp++ = *(tp - 1);
+				}
+			}
+			hoff_h += 4;
+			if (hoff_h >= 256) {
+				hoff_h = 0;
+				nametbl_addr = line2 << 8;
+			}
 		}
 	}
-	else if (m_cont_reg[2] & 0x40)
-	{
-		for (x=0;x<32;x++)
+	else if (m_model == MODEL_V9938 && m_cont_reg[2] & 0x40)
+	{// light pen feature
+		for (x = 0;x < 32; x++)
 		{
 			nametbl_addr++;
 			colour = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
@@ -1643,16 +1713,27 @@ void v99x8_device::mode_graphic7(const scrntype_t *pens, scrntype_t *ln, scrntyp
 	}
 	else
 	{
-		for (x=0;x<256;x++)
+		for (x = 0; (x + hoff_l) < 256; x++)
 		{
-			colour = m_vram_space->read_byte(((nametbl_addr&1) << 16) | (nametbl_addr>>1));
-			pen = pens[m_pal_ind256[colour]];
-			tf = GET_TP(colour);
-			*ln++ = pen;
-			*ln++ = pen;
-			*tp++ = tf;
-			*tp++ = tf;
-			nametbl_addr++;
+			if (masked > 0 && x < (8 - hoff_l)) {
+				ln += 2;
+				tp += 2;
+			}
+			else {
+				int nametbl = nametbl_addr + hoff_h;
+				colour = m_vram_space->read_byte(((nametbl & 1) << 16) | (nametbl >> 1));
+				pen = pens[m_pal_ind256[colour]];
+				tf = GET_TP(colour);
+				*ln++ = pen;
+				*ln++ = pen;
+				*tp++ = tf;
+				*tp++ = tf;
+			}
+			hoff_h++;
+			if (hoff_h >= 256) {
+				hoff_h = 0;
+				nametbl_addr = line2 << 8;
+			}
 		}
 	}
 
