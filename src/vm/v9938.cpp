@@ -1078,7 +1078,7 @@ void v99x8_device::mode_text2(const scrntype_t *pens, scrntype_t *ln, scrntype_t
 	tb0 = GET_TP(m_cont_reg[12] & 15);
 	name = (line/8)*80;
 
-	xxx = (m_offset_x + 8) * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
+	xxx = (m_offset_x + 8) * 2;
 	pen = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	while (xxx--) {
 		*ln++ = pen;
@@ -1153,30 +1153,55 @@ void v99x8_device::mode_multi(const scrntype_t *pens, scrntype_t *ln, scrntype_t
 
 	pen_bg = pens[m_pal_ind16[(m_cont_reg[7]&0x0f)]];
 	tb = GET_TP(m_cont_reg[7] & 0xf);
-	xx = m_offset_x * 2 + ((m_cont_reg[25] & 2) ? 16 : 0);
+
+	int masked = (m_model == MODEL_V9958 && m_cont_reg[25] & 2) ? 16 : 0;
+	xx = m_offset_x * 2 + masked;
 	while (xx--) {
 		*ln++ = pen_bg;
 		*tp++ = tb;
 	}
 
-	for (x=0;x<32;x++)
+	int hoff_h = (m_model == MODEL_V9958) ? m_cont_reg[26] & 31 : 0;
+	int hoff_l = (m_model == MODEL_V9958) ? m_cont_reg[27] & 7 : 0;
+	if (masked > 0) {
+		ln -= (8 - hoff_l) * 2;
+		tp -= (8 - hoff_l) * 2;
+	}
+	else {
+		ln += hoff_l * 2;
+		tp += hoff_l * 2;
+	}
+
+	for (x = 0; x < 32; x++)
 	{
-		colour = m_vram_space->read_byte(patterntbl_addr + (m_vram_space->read_byte(nametbl_addr + name) * 8) + ((line2/4)&7));
+		colour = m_vram_space->read_byte(patterntbl_addr + (m_vram_space->read_byte(nametbl_addr + name + hoff_h) * 8) + ((line2/4)&7));
 		pen = pens[m_pal_ind16[colour>>4]];
 		tf = GET_TP(colour >> 4);
 		/* eight pixels */
-		for (int i = 0; i < 8; i++) {
-			*ln++ = pen;
-			*tp++ = tf;
+		for (int i = 0; i < 8 && (x * 16 + i + hoff_l * 2) < 512; i++) {
+			if (masked > 0 && (x * 16 + i) < (8 - hoff_l) * 2) {
+				ln++;
+				tp++;
+			}
+			else {
+				*ln++ = pen;
+				*tp++ = tf;
+			}
 		}
 		pen = pens[m_pal_ind16[colour&15]];
 		tf = GET_TP(colour & 15);
 		/* eight pixels */
-		for (int i = 0; i < 8; i++) {
-			*ln++ = pen;
-			*tp++ = tf;
+		for (int i = 0; i < 8 && (x * 16 + 8 + i + hoff_l * 2) < 512; i++) {
+			if (masked > 0 && (x * 16 + 8 + i) < (8 - hoff_l) * 2) {
+				ln++;
+				tp++;
+			}
+			else {
+				*ln++ = pen;
+				*tp++ = tf;
+			}
 		}
-		name++;
+		hoff_h = (hoff_h + 1) & 31;
 	}
 
 	xx = (16 - m_offset_x) * 2;
